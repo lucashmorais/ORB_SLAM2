@@ -58,6 +58,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <iostream>
 #include <vector>
 #include "ORBextractor.h"
 
@@ -1035,6 +1036,10 @@ static void computeDescriptors(const Mat& image, vector<KeyPoint>& keypoints, Ma
 {
     descriptors = Mat::zeros((int)keypoints.size(), 32, CV_8UC1);
 
+#ifdef PERF_VERBOSE
+    //std::cerr << "[computeDescriptors]:: keypoints.size() = " << keypoints.size() << std::endl; 
+#endif
+    //#pragma omp taskloop
     for (size_t i = 0; i < keypoints.size(); i++)
         computeOrbDescriptor(keypoints[i], image, &pattern[0], descriptors.ptr((int)i));
 }

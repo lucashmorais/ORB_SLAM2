@@ -21,7 +21,31 @@
 #include "Frame.h"
 #include "Converter.h"
 #include "ORBmatcher.h"
+#include <chrono>
 #include <thread>
+#include <omp.h>
+
+#include <iostream>
+
+void printTimeSinceLastTimeStamp() {
+  static std::chrono::time_point<std::chrono::system_clock> lastTimeStamp;
+  static bool first = true;
+
+  if (first) {
+    lastTimeStamp = std::chrono::system_clock::now();
+    std::cerr << "First time stamp was set." << endl;
+    first = false;
+    return;
+  }
+
+  std::chrono::time_point<std::chrono::system_clock> currentTimeStamp = std::chrono::system_clock::now();
+
+  std::chrono::duration<double> elapsed_seconds = currentTimeStamp - lastTimeStamp;
+
+  std::cout << "Elapsed time since last timestamp: " << elapsed_seconds.count() << "s\n";
+
+  lastTimeStamp = std::chrono::system_clock::now();
+}
 
 namespace ORB_SLAM2
 {
@@ -57,6 +81,10 @@ Frame::Frame(const Frame &frame)
         SetPose(frame.mTcw);
 }
 
+void derpTask(void) {
+  std::cerr << "Hello from thread " << omp_get_thread_num() << "!" << std::endl;
+}
+
 
 Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
     :mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight), mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
@@ -64,6 +92,11 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 {
     // Frame ID
     mnId=nNextId++;
+
+    if (mnId % 100 == 0) {
+      std::cerr << "Processing frame " << mnId << std::endl;
+      printTimeSinceLastTimeStamp();
+    }
 
     // Scale Level Info
     mnScaleLevels = mpORBextractorLeft->GetLevels();
@@ -74,11 +107,31 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     mvLevelSigma2 = mpORBextractorLeft->GetScaleSigmaSquares();
     mvInvLevelSigma2 = mpORBextractorLeft->GetInverseScaleSigmaSquares();
 
+    /*
+    #pragma omp parallel
+    {
+      #pragma omp single
+      {
+        for (int i = 0; i < omp_get_num_procs(); i++) {
+          #pragma omp task
+          derpTask();
+        }
+      }
+    }
+    */
+
+    #pragma omp parallel if (true)
+    {
+      #pragma omp single
+      {
+        #pragma omp task
+        Frame::ExtractORB(0, imLeft);
+        #pragma omp task
+        Frame::ExtractORB(1, imRight);
+      }
+    }
+
     // ORB extraction
-    thread threadLeft(&Frame::ExtractORB,this,0,imLeft);
-    thread threadRight(&Frame::ExtractORB,this,1,imRight);
-    threadLeft.join();
-    threadRight.join();
 
     N = mvKeys.size();
 
@@ -122,6 +175,11 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
 {
     // Frame ID
     mnId=nNextId++;
+
+    if (mnId % 500 == 0) {
+      std::cerr << "Processing frame " << mnId << std::endl;
+      printTimeSinceLastTimeStamp();
+    }
 
     // Scale Level Info
     mnScaleLevels = mpORBextractorLeft->GetLevels();
@@ -177,6 +235,11 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
 {
     // Frame ID
     mnId=nNextId++;
+
+    if (mnId % 500 == 0) {
+      std::cerr << "Processing frame " << mnId << std::endl;
+      printTimeSinceLastTimeStamp();
+    }
 
     // Scale Level Info
     mnScaleLevels = mpORBextractorLeft->GetLevels();

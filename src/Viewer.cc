@@ -22,6 +22,7 @@
 #include <pangolin/pangolin.h>
 
 #include <mutex>
+#define DISABLE_PANGOLIN
 
 namespace ORB_SLAM2
 {
@@ -32,10 +33,14 @@ Viewer::Viewer(System* pSystem, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer
 {
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
 
+#ifdef UNBOUNDED_FPS
+    mT = 0.0;
+#else
     float fps = fSettings["Camera.fps"];
     if(fps<1)
         fps=30;
     mT = 1e3/fps;
+#endif
 
     mImageWidth = fSettings["Camera.width"];
     mImageHeight = fSettings["Camera.height"];
@@ -57,6 +62,7 @@ void Viewer::Run()
     mbFinished = false;
     mbStopped = false;
 
+#ifndef DISABLE_PANGOLIN
     pangolin::CreateWindowAndBind("ORB-SLAM2: Map Viewer",1024,768);
 
     // 3D Mouse handler requires depth testing to be enabled
@@ -92,9 +98,11 @@ void Viewer::Run()
 
     bool bFollow = true;
     bool bLocalizationMode = mbReuse;
+#endif
 
     while(1)
     {
+#ifndef DISABLE_PANGOLIN
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         mpMapDrawer->GetCurrentOpenGLCameraMatrix(Twc);
@@ -153,6 +161,7 @@ void Viewer::Run()
             mpSystem->Reset();
             menuReset = false;
         }
+#endif
 
         if(Stop())
         {
